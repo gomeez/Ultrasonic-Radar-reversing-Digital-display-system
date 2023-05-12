@@ -1,0 +1,107 @@
+uint32_t interval = 0;// Gap
+float distance = 0;
+float distance2 = 0;
+float smallerDistance=0;
+ 
+uint32_t interval2 = 300;// Gap
+// Record the time of the last strobe
+unsigned long previousMillis = 0;
+
+// Timer 1 interrupt service routine
+ISR(TIMER1_COMPA_vect)
+{
+sevseg.refreshDisplay();
+}
+
+
+void setup()
+{
+  uint8_t numDigits = 4;
+  uint8_t digitPins[] = {2, 3, 4, 5};
+  uint8_t segmentPins[] = {6, 7, 8, 9, 10, 11, 12, 13};
+  uint8_t displayType = COMMON_ANODE; // (Common Anode or Common Cathode)// Ordinary anode or cathode
+
+  bool resistorsOnSegments = false;
+  bool updateWithDelays = false;
+  bool leadingZeros = false;
+  bool disableDecPoint = false;
+
+  pinMode(TRIG_PIN, OUTPUT);
+  pinMode(ECHO_PIN, INPUT);
+
+  pinMode(TRIG_PIN2, OUTPUT);
+  pinMode(ECHO_PIN2, INPUT);
+  
+  pinMode(RED_PIN, OUTPUT); // Set the red light pin to the output mode 
+  
+  sevseg.begin(displayType, numDigits, digitPins, segmentPins, resistorsOnSegments,
+               updateWithDelays, leadingZeros, disableDecPoint);
+  sevseg.setBrightness(90);
+
+  // Set up timer 1 for display refresh
+  cli(); // Disable interrupts
+  TCCR1A = 0; // Set timer1 to normal mode (count up)
+  TCCR1B = (1 << WGM12) | (1 << CS11) | (1 << CS10); // Set timer1 to CTC mode, prescaler = 64
+  OCR1A = 249; // Set compare match value (interrupt every 0.25ms)
+  TIMSK1 = (1 << OCIE1A); // Enable compare match interrupt
+  sei(); // Enable interrupts
+  
+}
+
+void loop()
+{
+    if ((millis() - interval) >= 100) {
+    interval = millis();
+
+    digitalWrite(TRIG_PIN, LOW);
+    delayMicroseconds(5);
+    digitalWrite(TRIG_PIN, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN, LOW);
+
+    // Read time of the trig and echo pins
+    duration = pulseIn(ECHO_PIN, HIGH);
+
+    // Calculates the distance
+    distance = (duration / 2) / 29;
+
+
+    digitalWrite(TRIG_PIN2, LOW);
+    delayMicroseconds(5);
+    digitalWrite(TRIG_PIN2, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(TRIG_PIN2, LOW);
+
+    // Read time of the trig and echo pins
+    duration = pulseIn(ECHO_PIN2, HIGH);
+
+    // Calculates the distance
+    distance2 = (duration / 2) / 29;
+
+
+    // Compare two distance values and display the smaller values on the digital tube
+    smallerDistance = distance < distance2 ? distance : distance2;
+    sevseg.setNumber(smallerDistance);
+
+  }
+
+
+    // If there is a detection distance less than 10, the red light flashes
+  
+    if (smallerDistance < 10) {
+
+  // Get the current time
+    unsigned long currentMillis = millis();
+
+    // Judge whether the time interval of strobe is up
+    if (currentMillis - previousMillis >= interval2) {
+    // Record the current time
+    previousMillis = currentMillis;
+
+    // Toggle the status of LED
+    digitalWrite(RED_PIN, !digitalRead(RED_PIN));
+    } 
+    }else {
+      digitalWrite(RED_PIN, LOW);
+    }
+}
